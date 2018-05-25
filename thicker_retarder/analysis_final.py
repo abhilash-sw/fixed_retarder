@@ -4,7 +4,7 @@ from scipy import optimize
 import numpy as np
 import glob
 import find_ret
-import smooth_numpy
+#import smooth_numpy
 from scipy.signal import argrelextrema
 import pickle
 
@@ -17,8 +17,8 @@ def find_tilt(img,angle_range=[1,2]):
     for ang in np.arange(1,2,0.001):
         M = cv2.getRotationMatrix2D((cols/2,rows/2),ang,1)
         dst = cv2.warpAffine(img,M,(cols,rows))
-        r1 = np.mean(dst[450:550,:],axis=0)
-        r2 = np.mean(dst[1450:1550,:],axis=0)
+        r1 = np.mean(dst[620:720,:],axis=0)
+        r2 = np.mean(dst[1600:1700,:],axis=0)
         #cor.append(np.correlate(r1,r2)[0])
         #rm.append(np.var(r1-r2)) 
         cf.append(np.corrcoef(r1,r2)[0,1])
@@ -103,7 +103,7 @@ errfunc = lambda p,i,i_csv,lam: (np.interp(lam,id2wav(p[0],p[1],np.arange(len(i)
 mn = mn45    #/np.max(mn45)
 tx = tx/np.max(tx)
 p0 = [1/45,520,90] # for 550
-#p0 = [5/340,433,90] # for 450
+#p0 = [0.0125,436,90] # for 450
 #p0 = [1/58,581,90] # for 600
 #p0 = [3/370,690,100] # for 700
 p1_wav, success = optimize.leastsq(errfunc, p0[:], args=(mn,tx,wl))
