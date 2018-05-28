@@ -8,6 +8,7 @@ import find_ret
 from scipy.signal import argrelextrema
 import pickle
 
+
 def find_tilt(img,angle_range=[1,2]):
     
     angs = np.arange(angle_range[0],angle_range[1],0.001)
@@ -102,9 +103,9 @@ errfunc = lambda p,i,i_csv,lam: (np.interp(lam,id2wav(p[0],p[1],np.arange(len(i)
 
 mn = mn45    #/np.max(mn45)
 tx = tx/np.max(tx)
-p0 = [1/45,520,90] # for 550
+p0 = [0.017,530,90] # for 550
 #p0 = [0.0125,436,90] # for 450
-#p0 = [1/58,581,90] # for 600
+#p0 = [0.0096,591.1,90] # for 600
 #p0 = [3/370,690,100] # for 700
 p1_wav, success = optimize.leastsq(errfunc, p0[:], args=(mn,tx,wl))
 
@@ -146,39 +147,87 @@ np.savetxt('retardance_vs_wavelength.dat',np.vstack([ww,rr]).T,fmt='%f')
 
 
 
-mn0_smooth = smooth_numpy.smooth(mn0)
-mn0_smooth = mn0_smooth[5:-5]
+#mn0_smooth = smooth_numpy.smooth(mn0)
+#mn0_smooth = mn0_smooth[5:-5]
 
-imaxes = argrelextrema(mn0_smooth, np.greater)[0]
+#imaxes = argrelextrema(mn0_smooth, np.greater)[0]
 
-imaxes = imaxes[(imaxes>1000) & (imaxes<1500)]
+#imaxes = imaxes[(imaxes>1000) & (imaxes<1500)]
 
 
 
-ww_max = []
-rr_max = []
+#ww_max = []
+#rr_max = []
 
-for imax in imaxes:
-    mn_id = []
-    for ds in angles:
-        mn_id.append(mns_shifted[ds][imax])#(np.mean(mns_shifted[ds][int(imax-step_id/2):int(imax+step_id/2)]))
-
-    mn_id = np.array(mn_id)
-    mn_id = (mn_id - p1_wav[2])/np.max(mn_id - p1_wav[2])
-
-    p1_ret = find_ret.find_retardance(mn_id,angles)
-    wav_tmp = id2wav(p1_wav[0],p1_wav[1],imax)
-    ww_max.append(wav_tmp)
-    rr_max.append(p1_ret[0]*180/np.pi)
-
-   
-ww_max = np.array(ww_max)
-rr_max = np.array(rr_max)
+#for imax in imaxes:
+#    mn_id = []
+#    for ds in angles:
+#        mn_id.append(mns_shifted[ds][imax])#(np.mean(mns_shifted[ds][int(imax-step_id/2):int(imax+step_id/2)]))
+#
+#    mn_id = np.array(mn_id)
+#    mn_id = (mn_id - p1_wav[2])/np.max(mn_id - p1_wav[2])
+#
+#    p1_ret = find_ret.find_retardance(mn_id,angles)
+#    wav_tmp = id2wav(p1_wav[0],p1_wav[1],imax)
+#    ww_max.append(wav_tmp)
+#    rr_max.append(p1_ret[0]*180/np.pi)
+#
+#   
+#ww_max = np.array(ww_max)
+#rr_max = np.array(rr_max)
 
 # find the thickness
 
 
+#def n_c(lam,A,B,C,D,F):
+#    n = A + B*lam**2/(lam**2 - C) + D*lam**2/(lam**2 -F)
+#    n = np.sqrt(n)
+#    return n
+#
+#
+#def no_c(lam):
+#    Ao = 1.73358749
+#    Bo = 0.96464345
+#    Co = 1.94325203 * 10**(-2)
+#    Do = 1.82831454
+#    Fo = 120
+#    no = n_c(lam,Ao,Bo,Co,Do,Fo)
+#    return no
+#
+#def ne_c(lam):
+#    Ae = 1.35859695
+#    Be = 0.82427830
+#    Ce = 1.06689543*10**(-2)
+#    De = 0.14429128
+#    Fe = 120
+#    ne = n_c(lam,Ae,Be,Ce,De,Fe)
+#    return ne
+#
+#
+#
+#ne = n_c(ww/1000,Ae,Be,Ce,De,Fe)
+#no = n_c(ww/1000,Ao,Bo,Co,Do,Fo)
+#
+#
+#retardance = lambda t,lam: (2*np.pi * t*10**6 * (no_c(lam/1000) - ne_c(lam/1000))/lam) % (2*np.pi)  # t in mm, lam in nm
+#
+#errfunc_thick = lambda p,ret_obs,lam: ret_obs - retardance(p[0],lam) # lam in nm
+#
+#p0_thick = [2.5]
+#
+#p1_thick,success = optimize.leastsq(errfunc_thick, p0_thick[:], args=(rr*np.pi/180,ww))
+
+# copied from simulation_multi_reflaction
+
+def output_its(theta,ret):
+    """
+    Given theta and retartdance value, gives intensity. theta and ret in radians
+    """
+    its = (1 + (np.cos(2*theta))**2 + ((np.sin(2*theta))**2)*np.cos(ret))/2
+    return its
+
 def n_c(lam,A,B,C,D,F):
+    lam = lam/1000
     n = A + B*lam**2/(lam**2 - C) + D*lam**2/(lam**2 -F)
     n = np.sqrt(n)
     return n
@@ -202,16 +251,102 @@ def ne_c(lam):
     ne = n_c(lam,Ae,Be,Ce,De,Fe)
     return ne
 
+retardance = lambda thick,lam: (2*np.pi * thick*10**6 * (no_c(lam/1000) - ne_c(lam/1000))/lam) % (np.pi)  # t in mm, lam in nm
+
+def transmittance(n,thick,lam): #n - ri,thick in mm, lam in nm
+    delta = 2*np.pi * thick * 10**6 * n/lam
+    t = 8*n**2/(1 + n**4 + 6*n**2 - (n**2 -1)**2*np.cos(2*delta))
+    return t
+
+def modified_retardance(n,thick,lam): #n - ri,thick in mm, lam in nm
+    delta = 2*np.pi * thick * 10**6 * n/lam
+    tan_phi = (n**2 + 1)/(2*n) * np.tan(delta)
+    phi = np.arctan(tan_phi)
+    return phi
 
 
-#ne = n_c(ww/1000,Ae,Be,Ce,De,Fe)
-#no = n_c(ww/1000,Ao,Bo,Co,Do,Fo)
+start_id = 1000
+end_id = 1500
+step_id =1 
+
+ret = {}
+
+obs_its_wrt_angles = []
+lams = []
+modified_angles = []
 
 
-retardance = lambda t,lam: (2*np.pi * t*10**6 * (no_c(lam/1000) - ne_c(lam/1000))/lam) % (2*np.pi)  # t in mm, lam in nm
+for ids in np.arange(start_id,end_id,step_id):
+    mn_id = []
+    for ds in angles:
+        mn_id.append(np.mean(mns_shifted[ds][ids:ids+step_id]))
 
-errfunc_thick = lambda p,ret_obs,lam: ret_obs - retardance(p[0],lam) # lam in nm
+    mn_id = np.array(mn_id)
+    mn_id = (mn_id - p1_wav[2])/np.max(mn_id - p1_wav[2])
+    obs_its_wrt_angles.append(mn_id)    
 
-p0_thick = [2.5]
+    p1_ret = find_ret.find_retardance(mn_id,angles)
+    wav_tmp = id2wav(p1_wav[0],p1_wav[1],ids+step_id/2)
+    lams.append(wav_tmp)
+    modified_angles.append(angles*p1_ret[2] + p1_ret[1]*180/np.pi)
+    ret[wav_tmp] = p1_ret[0]
 
-p1_thick,success = optimize.leastsq(errfunc_thick, p0_thick[:], args=(rr*np.pi/180,ww))
+lams = np.array(lams)
+
+mesh_lams,mesh_angles = np.meshgrid(lams,angles)
+img_obs_its = np.zeros([len(angles),len(lams)])
+
+
+for i in range(len(lams)):
+    for j in range(len(modified_angles[i])):
+        mesh_angles[j,i] = modified_angles[i][j]
+        img_obs_its[j,i] = obs_its_wrt_angles[i][j]
+
+A = np.zeros([len(angles),len(lams),3])
+A[:,:,0] = mesh_lams
+A[:,:,1] = mesh_angles/180*np.pi
+A[:,:,2] = img_obs_its
+
+A = A.reshape(len(lams)*len(angles),3)
+
+
+
+def modified_output_its(xdata,thick): #thick in mm, lam in nm
+    lam = xdata[:,0]
+    theta = xdata[:,1]
+    ne = ne_c(lam)
+    no = no_c(lam)
+    phi_e = modified_retardance(ne,thick,lam)
+    phi_o = modified_retardance(no,thick,lam)
+    phi = phi_e - phi_o
+
+    te = transmittance(ne,thick,lam)
+    to = transmittance(no,thick,lam)
+    its_tmp = te*np.cos(theta)**4 + to*np.sin(theta)**4 + 2*(te*to)**(1/2)*np.sin(theta)**2*np.cos(theta)**2*np.cos(phi)
+    its =  its_tmp/np.max(its_tmp)
+    return its
+
+optimize.curve_fit(modified_output_its, A[:,:2], A[:,2], [1.1])
+
+# wavelength resolution
+
+def gauss_kern(sigma,size=None):
+    if size == None:
+        size = int(sigma)
+    #size = int(size)
+    x = np.arange(-size,size+1)
+    g = np.exp(-(x**2/sigma))
+    g = g/np.sum(g)
+    return g
+
+guess_thickness = 4 #mm
+
+sim_img = modified_output_its(A[:,:2],guess_thickness).reshape(len(angles),len(lams))
+gs = gauss_kern(5,100)
+
+sim_img_smooth = np.zeros([len(angles),len(lams)])
+
+for i in range(len(angles)):
+    sim_img_smooth[i,:] = np.convolve(sim_img[i,:],gs)[100:-100]
+
+
