@@ -106,7 +106,7 @@ tx = tx/np.max(tx)
 p0 = [0.017,530,90] # for 550
 #p0 = [0.0125,436,90] # for 450
 #p0 = [0.0096,591.1,90] # for 600
-#p0 = [3/370,690,100] # for 700
+#p0 = [0.01,687.6,100] # for 700
 p1_wav, success = optimize.leastsq(errfunc, p0[:], args=(mn,tx,wl))
 
 
@@ -285,7 +285,7 @@ for ids in np.arange(start_id,end_id,step_id):
     mn_id = (mn_id - p1_wav[2])/np.max(mn_id - p1_wav[2])
     obs_its_wrt_angles.append(mn_id)    
 
-    p1_ret = find_ret.find_retardance(mn_id,angles)
+    p1_ret = find_ret.find_retardance(mn_id,angles,p0=[np.pi/2,0,1])
     wav_tmp = id2wav(p1_wav[0],p1_wav[1],ids+step_id/2)
     lams.append(wav_tmp)
     modified_angles.append(angles*p1_ret[2] + p1_ret[1]*180/np.pi)
