@@ -7,6 +7,8 @@ import find_ret
 #import smooth_numpy
 from scipy.signal import argrelextrema
 import pickle
+import os
+from astropy.table import Table
 
 
 def find_tilt(img,angle_range=[1,2]):
@@ -30,13 +32,33 @@ def find_tilt(img,angle_range=[1,2]):
 
 ### find tilts
 rot_ang_file = glob.glob('rotation_angles.pkl')
+img_files = glob.glob('*-.fits')
 
 if rot_ang_file:
-    fid_rot = open('rotation_angles.pkl','r')
+    fid_rot = open('rotation_angles.pkl','rb')
     rot_angles = pickle.load(fid_rot)
+    angles = []
+    mns = {}
+    for img_file in img_files:                                            
+        hdus = fits.open(img_file)                        
+        print(img_file)                        
+        img = hdus[0].data                 
+        hdus.close()  
+        rows,cols = img.shape                       
+        angles.append(float(img_file[:-6]))
+        
+        M = cv2.getRotationMatrix2D((cols/2,rows/2),rot_angles[angles[-1]],1)
+        dst = cv2.warpAffine(img,M,(cols,rows))
+        dst = np.fliplr(dst)
+        dst = dst[350:1850,:]
+        mn = np.mean(dst,axis=0)
+        mns[angles[-1]] = mn
+
+    angles = np.array(angles)
+    angles = np.sort(angles)
 
 else:
-    img_files = glob.glob('*-.fits')
+    
 
     angles = []
     rot_angles = {}
@@ -87,7 +109,7 @@ for ds in angles:
 
 
 ### filter reading and fit
-fl = '/home/abhilash/lctf/fixed_ret/broad_filters/550FS10.csv'
+fl = '/home/abhilash/abhilash/lctf/fixed_ret/codes/datasheets/optifcal_filters/550FS10.csv'
 
 
 flt_dt = np.loadtxt(fl,skiprows=9,delimiter=',')
@@ -142,7 +164,9 @@ for k in ret.keys():
 
 ww = np.array(ww)
 rr = np.array(rr)
-np.savetxt('retardance_vs_wavelength.dat',np.vstack([ww,rr]).T,fmt='%f')
+
+if not os.path.isfile('retardance_vs_wavelength.dat'):
+    np.savetxt('retardance_vs_wavelength.dat',np.vstack([ww,rr]).T,fmt='%f')
 
 
 
@@ -217,7 +241,7 @@ np.savetxt('retardance_vs_wavelength.dat',np.vstack([ww,rr]).T,fmt='%f')
 #
 #p1_thick,success = optimize.leastsq(errfunc_thick, p0_thick[:], args=(rr*np.pi/180,ww))
 
-# copied from simulation_multi_reflaction
+###### copied from simulation_multi_reflaction ########
 
 def output_its(theta,ret):
     """
@@ -285,7 +309,7 @@ for ids in np.arange(start_id,end_id,step_id):
     mn_id = (mn_id - p1_wav[2])/np.max(mn_id - p1_wav[2])
     obs_its_wrt_angles.append(mn_id)    
 
-    p1_ret = find_ret.find_retardance(mn_id,angles,p0=[np.pi/2,0,1])
+    p1_ret = find_ret.find_retardance(mn_id,angles,p0=[np.pi/2,0,1.05])
     wav_tmp = id2wav(p1_wav[0],p1_wav[1],ids+step_id/2)
     lams.append(wav_tmp)
     modified_angles.append(angles*p1_ret[2] + p1_ret[1]*180/np.pi)
@@ -309,6 +333,13 @@ A[:,:,2] = img_obs_its
 
 A = A.reshape(len(lams)*len(angles),3)
 
+if not os.path.isfile('image.fits'):
+    hdu_img = fits.PrimaryHDU(img_obs_its) 
+    t = Table(A[:,:2],names=('Wavelength','Angles'))
+    hdu_table = fits.BinTableHDU(t) 
+
+    hdul = fits.HDUList([hdu_img,hdu_table])
+    hdul.writeto('image.fits')
 
 
 def modified_output_its(xdata,thick): #thick in mm, lam in nm
@@ -326,7 +357,7 @@ def modified_output_its(xdata,thick): #thick in mm, lam in nm
     its =  its_tmp/np.max(its_tmp)
     return its
 
-optimize.curve_fit(modified_output_its, A[:,:2], A[:,2], [1.1])
+#optimize.curve_fit(modified_output_its, A[:,:2], A[:,2], [1.1])
 
 # wavelength resolution
 
