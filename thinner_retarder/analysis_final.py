@@ -9,7 +9,6 @@ from scipy.signal import argrelextrema
 import pickle
 import os
 from astropy.table import Table
-
 def find_tilt(img,angle_range=[1,2]):
     
     angs = np.arange(angle_range[0],angle_range[1],0.001)
